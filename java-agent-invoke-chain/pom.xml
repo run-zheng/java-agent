@@ -34,7 +34,7 @@
     <build>
         <finalName>java-agent-invoke-chain</finalName>
         <plugins>
-            <plugin>
+            <!--<plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <executions>
@@ -44,17 +44,50 @@
                         </goals>
                         <phase>package</phase>
                         <configuration>
-                            <!--一起打包依赖的jar-->
+                            &lt;!&ndash;一起打包依赖的jar&ndash;&gt;
                             <descriptorRefs>
                                 <descriptorRef>jar-with-dependencies</descriptorRef>
                             </descriptorRefs>
-                            <!--生成MANIFEST.MF文件到jar包的META-INF-->
+                            &lt;!&ndash;生成MANIFEST.MF文件到jar包的META-INF&ndash;&gt;
                             <archive>
                                 <manifestEntries>
                                     <Premain-Class>org.demo.java.agent.Agent</Premain-Class>
                                 </manifestEntries>
                             </archive>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>-->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.1.0</version>
+                <configuration>
+                    <artifactSet>
+                        <includes>
+                            <include>org.javassist:*</include>
+                        </includes>
+                    </artifactSet>
+                    <relocations>
+                        <relocation>
+                            <pattern>javassist</pattern>
+                            <shadedPattern>org.demo.javassist</shadedPattern>
+                        </relocation>
+                    </relocations>
+                    <transformers>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                            <manifestEntries>
+                                <Premain-Class>org.demo.java.agent.Agent</Premain-Class>
+                            </manifestEntries>
+                        </transformer>
+                    </transformers>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>
