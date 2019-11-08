@@ -6,12 +6,12 @@ public class Agent {
     public static void premain(String args, Instrumentation inst){
         int loadedClass = inst.getAllLoadedClasses().length;
 
-        System.out.println("================================Java Agent premain instrument======================");
-        System.out.println("Agent  args: " + args);
+        System.out.println("================================Java agent premain instrument======================");
+        System.out.println("agent  args: " + args);
         System.out.println("isRetransformClassesSupported: " + inst.isRetransformClassesSupported());
         System.out.println("isRedefineClassesSupported: " + inst.isRedefineClassesSupported());
         System.out.println("isNativeMethodPrefixSupported: " + inst.isNativeMethodPrefixSupported());
-        System.out.println("Agent's ClassLoader:  " + Agent.class.getClassLoader().getClass().getName());
+        System.out.println("agent's ClassLoader:  " + Agent.class.getClassLoader().getClass().getName());
         System.out.println("getAllLoadedClasses: ");
         Class[] allLoadedClasses = inst.getAllLoadedClasses();
         for (Class clazzz: allLoadedClasses) {
@@ -22,7 +22,7 @@ public class Agent {
     }
 
     public static void premain(String args){
-        System.out.println("================================Java Agent premain======================");
-        System.out.println("Agent  args: " + args);
+        System.out.println("================================Java agent premain======================");
+        System.out.println("agent  args: " + args);
     }
 }

@@ -1,6 +1,7 @@
 package org.demo.java.agent;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class InvokeChainLogger {
     private static final ThreadLocal<AtomicInteger>  invokeDeeps = new ThreadLocal<>();

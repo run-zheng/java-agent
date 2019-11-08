@@ -5,10 +5,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.demo</groupId>
-    <artifactId>java-agent-invoke-chain</artifactId>
+    <artifactId>java-agent-invoke-chain2</artifactId>
     <version>1.0-SNAPSHOT</version>
 
-    <name>java-agent-invoke-chain</name>
+    <name>java-agent-invoke-chain2</name>
     <!-- FIXME change it to the project's website -->
     <url>http://www.example.com</url>
 

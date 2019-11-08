@@ -1,16 +1,17 @@
 package org.demo.java.agent;
+
 import javassist.ClassPool;
 import javassist.CtBehavior;
 import javassist.CtClass;
 import javassist.Modifier;
 
 import java.io.ByteArrayInputStream;
-import java.util.*;
-
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
+import java.util.HashSet;
+import java.util.Set;
 
 public class Agent {
     private static final Set<String> excludeSet = new HashSet<>();
@@ -57,7 +58,7 @@ public class Agent {
                 String packageClass = className.replaceAll("/", ".");
                 //System.out.printf("className: %-100s loader: %-100s \r\n", packageClass, (loader != null ? loader.getClass().getName() : "<null>"));
                 if (packageSet == null || packageSet.size() <= 0){
-                    if(!packageClass.equals(Agent.class.getName()) && !packageClass.equals(InvokeChainLogger.class.getName())
+                    if(!packageClass.startsWith("org.demo.java.agent")
                         && !excludeSet.contains(packageClass)) {
                         boolean isExclude  = false;
                         for (String packageName : excludeSet) {
@@ -75,7 +76,7 @@ public class Agent {
                 }else {
                     for (String packageName : packageSet) {
                         if (packageClass.startsWith(packageName) &&
-                                !packageClass.equals(Agent.class.getName()) && !packageClass.equals(InvokeChainLogger.class.getName())) {
+                                !packageClass.startsWith("org.demo.java.agent")) {
                             InjectByteCode injectByteCode = new InjectByteCode(classfileBuffer, packageClass).invoke();
                             if (injectByteCode.is()) {
                                 return injectByteCode.getBytes();

@@ -6,7 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 
-//@Slf4j
+@Slf4j
 public class App {
     public static void main( String[] args ) throws ClassNotFoundException, InterruptedException {
         System.out.println( "Hello World!" );
@@ -14,13 +14,13 @@ public class App {
         //log.info("Start long operation...");
         longOperation();
 
-        /*logback slf4j log 调用链分析
+        /*logback slf4j log 调用链分析*/
         //log.info("End of long operation...");
 
-        //log.info("Hello World!");
-        */
+        log.info("Hello World!");
 
-        /*  JSON 调用链分析*/
+
+        /*  JSON 调用链分析
         List list = new ArrayList();
         list.add("test");
         System.out.println(JSON.toJSONString(list));
@@ -40,7 +40,7 @@ public class App {
         System.out.println("==========================parse jacky========================");
         JSON.parse(jacky);
         System.out.println("==========================parse joe========================");
-        JSON.parse(joe);
+        JSON.parse(joe);*/
     }
 
     public static class User {
