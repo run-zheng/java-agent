@@ -8,6 +8,8 @@ import java.util.List;
 
 @Slf4j
 public class App {
+    //-javaagent:H:/programmer/works/works-learning/java-agent/java-agent-demo/java-agent-invoke-chain3/target/java-agent-invoke-chain3.jar -Dexclude.package=org.slf4j:ch.qos:com.alibaba.fastjson.asm:org.groovy.debug:com.intellij -Dinvoke.chain.logtype=log
+    //-javaagent:H:/programmer/works/works-learning/java-agent/java-agent-demo/java-agent-invoke-chain3/target/java-agent-invoke-chain3.jar -Dexclude.package=org.slf4j:ch.qos:com.alibaba.fastjson.asm:org.groovy.debug:com.intellij
     public static void main( String[] args ) throws ClassNotFoundException, InterruptedException {
         System.out.println( "Hello World!" );
 
@@ -17,10 +19,13 @@ public class App {
         /*logback slf4j log 调用链分析*/
         //log.info("End of long operation...");
 
+        System.out.println("----at com.alibaba.fastjson.parser.Feature.Feature(com.alibaba.fastjson.parser.Feature:146)()");
+        System.out.println("----at com.alibaba.fastjson.parser.DefaultJSONParser.setContext(com.alibaba.fastjson.parser.DefaultJSONParser:1331)(java.lang.Object,java.lang.Object)");
+        System.out.println("----at com.alibaba.fastjson.parser.SymbolTable.addSymbol(com.alibaba.fastjson.parser.SymbolTable:86)(int,int,int,boolean)");
         log.info("Hello World!");
 
 
-        /*  JSON 调用链分析
+        /*  JSON 调用链分析*/
         List list = new ArrayList();
         list.add("test");
         System.out.println(JSON.toJSONString(list));
@@ -40,7 +45,7 @@ public class App {
         System.out.println("==========================parse jacky========================");
         JSON.parse(jacky);
         System.out.println("==========================parse joe========================");
-        JSON.parse(joe);*/
+        JSON.parse(joe);
     }
 
     public static class User {

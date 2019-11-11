@@ -4,6 +4,9 @@ import javassist.ClassPool;
 import javassist.CtBehavior;
 import javassist.CtClass;
 import javassist.Modifier;
+import javassist.bytecode.AttributeInfo;
+import javassist.bytecode.CodeAttribute;
+import javassist.bytecode.LineNumberAttribute;
 
 import java.io.ByteArrayInputStream;
 import java.lang.instrument.ClassFileTransformer;
@@ -27,9 +30,9 @@ public class Agent {
      */
     public static void premain(String args, Instrumentation inst){
         System.out.println("================================Java agent premain instrument======================");
-        System.out.println("agent  args: " + args);
-
-
+        System.out.println("agent  args: " + args );
+        System.out.println("----at "+Agent.class.getName() + ".premain(abc, def)("+Agent.class.getName()+".java:30)");
+        System.out.println("---- at com.alibaba.fastjson.parser.Feature(java.lang.String,int)(com.alibaba.fastjson.parser.Feature:146)");
         final Set<String> packageSet = new HashSet<String>();
         if(args != null && args.trim().length() > 0 ) {
             String[] packages = args.split(":");
@@ -123,18 +126,25 @@ public class Agent {
                 boolean hasInject = false;
                 if(!ctClass.isInterface()){
                     CtBehavior[] declaredBehaviors = ctClass.getDeclaredBehaviors();
+                    String className = ctClass.getName();
                     for (CtBehavior behavior: declaredBehaviors) {
                         if(!Modifier.isAbstract(behavior.getModifiers())
                             && !Modifier.isNative(behavior.getModifiers())) {
                             //System.out.println("Inject byte code class: "+ packageClass + " method: " + behavior.getName());
                             CtClass[] parameterTypes = behavior.getParameterTypes();
                             StringBuilder sb = new StringBuilder();
-                            if (parameterTypes != null) {
+                            /*if (parameterTypes != null) {
                                 for (CtClass parameter : parameterTypes) {
                                     sb.append(parameter.getName()).append(",");
                                 }
+                            }*/
+                            final int lineNumber = behavior.getMethodInfo().getLineNumber(0);
+                            if(lineNumber > 0 ){
+                                sb.append("(").append(ctClass.getName()).append(":").append(lineNumber).append(")");
+                            }else {
+                                sb.append("");
                             }
-                            behavior.insertBefore("InvokeChainLogger.log(\""+ behavior.getLongName() + "\");");
+                            behavior.insertBefore("InvokeChainLogger.log(\""+className+"\", \""+ behavior.getLongName() +"\",\""+sb.toString()+ "\");");
                             behavior.insertAfter("InvokeChainLogger.leave();");
                             hasInject = true;
                         }
