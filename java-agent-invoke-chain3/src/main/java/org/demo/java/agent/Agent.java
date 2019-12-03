@@ -1,14 +1,14 @@
 package org.demo.java.agent;
 
-import javassist.ClassPool;
-import javassist.CtBehavior;
-import javassist.CtClass;
-import javassist.Modifier;
+import javassist.*;
 import javassist.bytecode.AttributeInfo;
 import javassist.bytecode.CodeAttribute;
 import javassist.bytecode.LineNumberAttribute;
+import javassist.expr.ExprEditor;
+import javassist.expr.MethodCall;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
@@ -16,12 +16,25 @@ import java.security.ProtectionDomain;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * -javaagent:.../java-agent-invoke-chain3.jar
+ * -Dinvoke.chain.show.package=com.test:com.demo
+ * -Dinvoke.chain.exclude.package=com.demo.trace:org.springframework
+ * -Dinvoke.chain.exclude.ignore-default=false   default=false
+ *
+ * -Dinvoke.chain.log-type=log | console | file  default=console
+ * -Dinvoke.chain.log-file=...  default=invoke_chain_logfile.log
+ *
+ * -Dinvoke.chain.dump-inner-class=...  default=false
+ * -Dinvoke.chain.dump-inner-class-path=... default=dump-inner-class
+ *
+ * -Dinvoke.chain.ignore=...,...
+ *     none | getter | setter | enums-constructor | tostring | hashcode | equals
+ *     default=getter,setter,enums-constructor,tostring,hashcode,equals
+ *
+ */
 public class Agent {
-    private static final Set<String> excludeSet = new HashSet<>();
-    static {
-        excludeSet.add("java.");
-        excludeSet.add("sun.");
-    }
+    private static final Set<String> hasInjectClass = new HashSet<>();
     /**
      * package name
      *
@@ -29,60 +42,37 @@ public class Agent {
      * @param inst
      */
     public static void premain(String args, Instrumentation inst){
-        System.out.println("================================Java agent premain instrument======================");
-        System.out.println("agent  args: " + args );
-        System.out.println("----at "+Agent.class.getName() + ".premain(abc, def)("+Agent.class.getName()+".java:30)");
-        System.out.println("---- at com.alibaba.fastjson.parser.Feature(java.lang.String,int)(com.alibaba.fastjson.parser.Feature:146)");
-        final Set<String> packageSet = new HashSet<String>();
-        if(args != null && args.trim().length() > 0 ) {
-            String[] packages = args.split(":");
-            for (String packageName : packages) {
-                packageSet.add(packageName);
-            }
-        }
-        String showChainPackages = System.getProperty("show.chain.package");
-        if(showChainPackages != null && showChainPackages.trim().length() > 0 ){
-            String[] packages = showChainPackages.split(":");
-            for (String packageName : packages) {
-                packageSet.add(packageName);
-            }
-        }
-        String execludePackages = System.getProperty("exclude.package");
-        if(execludePackages != null && execludePackages.trim().length() > 0 ){
-            String[] packages = execludePackages.split(":");
-            for (String packageName : packages) {
-                excludeSet.add(packageName);
-            }
-        }
+        System.out.println("================================Invoke chain java agent premain instrument======================");
+        final InvokeChainConfig config = new InvokeChainConfig();
+        config.init(args);
+        InvokeChainLogger.init(config);
         inst.addTransformer(new ClassFileTransformer() {
             @Override
             public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined,
                                     ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
                 String packageClass = className.replaceAll("/", ".");
-                //System.out.printf("className: %-100s loader: %-100s \r\n", packageClass, (loader != null ? loader.getClass().getName() : "<null>"));
-                if (packageSet == null || packageSet.size() <= 0){
+                if (config.getShowPackageSet() == null || config.getShowPackageSet().size() <= 0){
                     if(!packageClass.startsWith("org.demo.java.agent")
-                        && !excludeSet.contains(packageClass)) {
-                        boolean isExclude  = false;
-                        for (String packageName : excludeSet) {
-                            if (packageClass.startsWith(packageName) ) {
-                                isExclude = true;
-                            }
-                        }
+                        && !config.getExcludePackageSet().contains(packageClass)) {
+                        boolean isExclude = isExclude(packageClass,config.getExcludePackageSet());
                         if(!isExclude){
-                            InjectByteCode injectByteCode = new InjectByteCode(classfileBuffer, packageClass).invoke();
+                            InjectByteCode injectByteCode = new InjectByteCode(config,classfileBuffer, packageClass).invoke();
                             if (injectByteCode.is()) {
                                 return injectByteCode.getBytes();
                             }
                         }
                     }
                 }else {
-                    for (String packageName : packageSet) {
+                    for (String packageName : config.getShowPackageSet()) {
                         if (packageClass.startsWith(packageName) &&
-                                !packageClass.startsWith("org.demo.java.agent")) {
-                            InjectByteCode injectByteCode = new InjectByteCode(classfileBuffer, packageClass).invoke();
-                            if (injectByteCode.is()) {
-                                return injectByteCode.getBytes();
+                                !packageClass.startsWith("org.demo.java.agent")
+                                &&  !config.getExcludePackageSet().contains(packageClass)) {
+                            boolean isExclude = isExclude(packageClass, config.getExcludePackageSet());
+                            if(!isExclude) {
+                                InjectByteCode injectByteCode = new InjectByteCode(config,classfileBuffer, packageClass).invoke();
+                                if (injectByteCode.is()) {
+                                    return injectByteCode.getBytes();
+                                }
                             }
                             break;
                         }
@@ -91,6 +81,16 @@ public class Agent {
                 return classfileBuffer;
             }
         });
+    }
+
+    private static boolean isExclude(String packageClass, Set<String> excludeSet) {
+        boolean isExclude = false;
+        for (String excludePackageName : excludeSet) {
+            if (packageClass.startsWith(excludePackageName)) {
+                isExclude = true;
+            }
+        }
+        return isExclude;
     }
 
     public static void premain(String args){
@@ -103,10 +103,11 @@ public class Agent {
         private byte[] classfileBuffer;
         private String packageClass;
         private byte[] bytes;
-
-        public InjectByteCode(byte[] classfileBuffer, String packageClass) {
+        private InvokeChainConfig config;
+        public InjectByteCode(InvokeChainConfig config,byte[] classfileBuffer, String packageClass) {
             this.classfileBuffer = classfileBuffer;
             this.packageClass = packageClass;
+            this.config = config;
         }
 
         boolean is() {
@@ -123,32 +124,55 @@ public class Agent {
                 ClassPool pool = ClassPool.getDefault();
                 pool.importPackage("org.demo.java.agent");
                 ctClass =pool.makeClass(new ByteArrayInputStream(classfileBuffer));
+                String className = ctClass.getName();
                 boolean hasInject = false;
-                if(!ctClass.isInterface()){
+
+                if(!ctClass.isInterface() &&  !hasInjectClass.contains(className)  && ! (className.indexOf("$") > 0) ){
                     CtBehavior[] declaredBehaviors = ctClass.getDeclaredBehaviors();
-                    String className = ctClass.getName();
+                    String methodName = null;
+                    boolean isIgnoreLog = false;
                     for (CtBehavior behavior: declaredBehaviors) {
-                        if(!Modifier.isAbstract(behavior.getModifiers())
-                            && !Modifier.isNative(behavior.getModifiers())) {
+                        if (!Modifier.isAbstract(behavior.getModifiers())
+                                && !Modifier.isNative(behavior.getModifiers())) {
                             //System.out.println("Inject byte code class: "+ packageClass + " method: " + behavior.getName());
-                            CtClass[] parameterTypes = behavior.getParameterTypes();
-                            StringBuilder sb = new StringBuilder();
-                            /*if (parameterTypes != null) {
-                                for (CtClass parameter : parameterTypes) {
-                                    sb.append(parameter.getName()).append(",");
+                            methodName = behavior.getName();
+                            isIgnoreLog = false;
+                            if(methodName.startsWith("get") && methodName.length() > 0 ){
+                                isIgnoreLog = isIgnoreLogGetterOrSetter(ctClass, methodName, "get");
+                            }else if(methodName.startsWith("set") && methodName.length() > 0 ){
+                                isIgnoreLog = isIgnoreLogGetterOrSetter(ctClass, methodName, "set");
+                            }else if(ctClass.isEnum() ){
+                                if("<init>".equalsIgnoreCase(methodName)
+                                        || ctClass.getSimpleName().equalsIgnoreCase(methodName)) {
+                                    if (config.getIgnoreLogMethodSet().contains("enums-constructor")) {
+                                        isIgnoreLog = true;
+                                    }
                                 }
-                            }*/
-                            final int lineNumber = behavior.getMethodInfo().getLineNumber(0);
-                            if(lineNumber > 0 ){
-                                sb.append("(").append(ctClass.getName()).append(":").append(lineNumber).append(")");
                             }else {
-                                sb.append("");
+                                if(config.getIgnoreLogMethodSet().contains(methodName)){
+                                    isIgnoreLog = true;
+                                }
                             }
-                            behavior.insertBefore("InvokeChainLogger.log(\""+className+"\", \""+ behavior.getLongName() +"\",\""+sb.toString()+ "\");");
-                            behavior.insertAfter("InvokeChainLogger.leave();");
-                            hasInject = true;
+                            if(!isIgnoreLog) {
+                                StringBuilder sb = new StringBuilder();
+                                final int lineNumber = behavior.getMethodInfo().getLineNumber(0);
+                                if (lineNumber > 0) {
+                                    sb.append("(").append(ctClass.getName()).append(":").append(lineNumber).append(")");
+                                } else {
+                                    sb.append("");
+                                }
+                                behavior.insertBefore("InvokeChainLogger.log(\"" + className + "\", \"" + behavior.getLongName() + "\",\"" + sb.toString() + "\");");
+                                behavior.insertAfter("InvokeChainLogger.leave();");
+                                hasInject = true;
+                            }
                         }
                     }
+                }else if(className.indexOf("$") > 0 && config.isDumpInnerClass()){
+                    File dir = new File(Thread.currentThread().getContextClassLoader().getResource("").getPath()+config.getDumpClassPath());
+                    if(!dir.exists()){
+                        dir.mkdirs();
+                    }
+                    ctClass.writeFile(dir.getPath());
                 }
                 if(hasInject) {
                     bytes = ctClass.toBytecode();
@@ -166,6 +190,24 @@ public class Agent {
             }
             myResult = false;
             return this;
+        }
+
+        private boolean isIgnoreLogGetterOrSetter(CtClass ctClass, String methodName, String prefix) throws NotFoundException {
+            boolean isIgnoreLog = false;
+            String  fieldName = methodName.replace(prefix, "");
+            if(fieldName.trim().length() > 0) {
+                fieldName = String.valueOf(fieldName.subSequence(0, 1)).toLowerCase()
+                        + (fieldName.length() > 1? fieldName.substring(1):"");
+                try {
+                    CtField field = ctClass.getDeclaredField(fieldName);
+                    if (field != null && config.getIgnoreLogMethodSet().contains(prefix + "ter")) {
+                        isIgnoreLog = true;
+                    }
+                } catch (NotFoundException e) {
+                    //ignore
+                }
+            }
+            return isIgnoreLog;
         }
     }
 }

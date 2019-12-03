@@ -5,15 +5,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class InvokeChainLogger {
     private static final ThreadLocal<AtomicInteger>  invokeDeeps = new ThreadLocal<>();
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(InvokeChainLogger.class);
+    private static InvokeChainConfig config;
+
+    public static void init(InvokeChainConfig invokeChainConfig){
+        config = invokeChainConfig;
+    }
 
     public static void log(String className, String methodName, String lineNumberInfo){
         if(invokeDeeps.get() == null){
             invokeDeeps.set(new AtomicInteger(0));
         }
         long l = invokeDeeps.get().incrementAndGet();
+
+        if(!config.isInvokeChainLogEnable()){
+            return ;
+        }
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < l ; i++){
-            sb.append("-");
+            sb.append("├");
         }
 
 
@@ -25,15 +34,15 @@ public class InvokeChainLogger {
         if(methodSimpleName.startsWith("(")){
             methodName = className + className.substring(className.lastIndexOf("."))+methodSimpleName;
         }
-        String logType = System.getProperty("invoke.chain.logtype", "console");
+
 
         String logInfo = methodName.substring(0, methodName.indexOf("("))+lineNumberInfo+methodName.substring(methodName.indexOf("("));
-        if("file".equalsIgnoreCase(logType)){
-            FileAsyncWriter instance = FileAsyncWriter.getInstance();
+        if(config.getLogType().isFile()){
+            FileAsyncWriter instance = FileAsyncWriter.getInstance(config);
             if(instance!=null) {
                 instance.log(String.format("%-20s  %s\r\n", threadName, sb.toString() +" at "+ logInfo));
             }
-        }else if("log".equalsIgnoreCase(logType)){
+        }else if(config.getLogType().isLog()){
             if(log != null) {
                 log.info(String.format("%-20s  %s", threadName, sb.toString() + " at " + logInfo));
             }
