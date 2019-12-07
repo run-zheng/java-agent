@@ -11,7 +11,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class FileAsyncWriter {
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(InvokeChainLogger.class);
+    private static final BootLogger log = BootLogger.getLogger(FileAsyncWriter.class.getName());
 
     private static volatile FileAsyncWriter instance;
 

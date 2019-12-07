@@ -1,20 +1,20 @@
 package org.demo.java.agent;
 
 import javassist.*;
-import javassist.bytecode.AttributeInfo;
-import javassist.bytecode.CodeAttribute;
-import javassist.bytecode.LineNumberAttribute;
-import javassist.expr.ExprEditor;
-import javassist.expr.MethodCall;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.IOException;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.jar.JarFile;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * -javaagent:.../java-agent-invoke-chain3.jar
@@ -34,7 +34,28 @@ import java.util.Set;
  *
  */
 public class Agent {
-    private static final Set<String> hasInjectClass = new HashSet<>();
+    private static final Pattern DEFAULT_AGENT_PATTERN = Pattern.compile("java-agent-invoke-chain3.jar");
+
+
+    private static String parseAgentJarPath(String classPath, String agentJar) {
+        String[] classPathList = classPath.split(File.pathSeparator);
+        for (String findPath : classPathList) {
+            boolean find = findPath.contains(agentJar);
+            if (find) {
+                return findPath;
+            }
+        }
+        return null;
+    }
+
+
+    private static JarFile getJarFile(String jarFilePath) {
+        try {
+            return new JarFile(jarFilePath);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Read java-agent-invoke-chain3.jar fail! "+ e.getMessage(), e);
+        }
+    }
     /**
      * package name
      *
@@ -43,171 +64,51 @@ public class Agent {
      */
     public static void premain(String args, Instrumentation inst){
         System.out.println("================================Invoke chain java agent premain instrument======================");
+
+        String classPath = System.getProperty("java.class.path");
+        Matcher matcher = DEFAULT_AGENT_PATTERN.matcher(classPath);
+        if (!matcher.find()) {
+            throw new IllegalArgumentException("Connot find java-agent-invoke-chain3.jar in classpath!");
+        }
+        String agentJarName =  classPath.substring(matcher.start(), matcher.end());
+
+        String agentJarFullPath = parseAgentJarPath(classPath, agentJarName);
+        JarFile agentJar = getJarFile(agentJarFullPath);
+        inst.appendToBootstrapClassLoaderSearch(agentJar);
+
+
         final InvokeChainConfig config = new InvokeChainConfig();
         config.init(args);
         InvokeChainLogger.init(config);
-        inst.addTransformer(new ClassFileTransformer() {
-            @Override
-            public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined,
-                                    ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
-                String packageClass = className.replaceAll("/", ".");
-                if (config.getShowPackageSet() == null || config.getShowPackageSet().size() <= 0){
-                    if(!packageClass.startsWith("org.demo.java.agent")
-                        && !config.getExcludePackageSet().contains(packageClass)) {
-                        boolean isExclude = isExclude(packageClass,config.getExcludePackageSet());
-                        if(!isExclude){
-                            InjectByteCode injectByteCode = new InjectByteCode(config,classfileBuffer, packageClass).invoke();
-                            if (injectByteCode.is()) {
-                                return injectByteCode.getBytes();
-                            }
-                        }
-                    }
-                }else {
-                    for (String packageName : config.getShowPackageSet()) {
-                        if (packageClass.startsWith(packageName) &&
-                                !packageClass.startsWith("org.demo.java.agent")
-                                &&  !config.getExcludePackageSet().contains(packageClass)) {
-                            boolean isExclude = isExclude(packageClass, config.getExcludePackageSet());
-                            if(!isExclude) {
-                                InjectByteCode injectByteCode = new InjectByteCode(config,classfileBuffer, packageClass).invoke();
-                                if (injectByteCode.is()) {
-                                    return injectByteCode.getBytes();
-                                }
-                            }
-                            break;
-                        }
-                    }
-                }
-                return classfileBuffer;
-            }
-        });
-    }
+        inst.addTransformer(new TargetClassFileTransformer(config));
 
-    private static boolean isExclude(String packageClass, Set<String> excludeSet) {
-        boolean isExclude = false;
-        for (String excludePackageName : excludeSet) {
-            if (packageClass.startsWith(excludePackageName)) {
-                isExclude = true;
+        /*appendJarToBootstrapClassLoader(inst, config);*/
+    }
+/*
+    private static void appendJarToBootstrapClassLoader(Instrumentation inst, InvokeChainConfig config) {
+        List<String> appendToBootstrapClassLoaderPathList = config.getAppendToBootstrapClassLoaderPathList();
+        if(appendToBootstrapClassLoaderPathList!=null&& appendToBootstrapClassLoaderPathList.size() > 0 ){
+            File pathDir = null;
+            for (String path : appendToBootstrapClassLoaderPathList){
+                pathDir = new File(path);
+                if(pathDir.exists() && pathDir.isDirectory()){
+                    File[] files = pathDir.listFiles();
+                    for (File file: files) {
+                        if(file.getName().endsWith(".jar") &&  file.isFile() ){
+                            inst.appendToBootstrapClassLoaderSearch(getJarFile(file.getAbsolutePath()));
+                        }
+                    }
+                }else if(path.endsWith(".jar") && pathDir.exists() && pathDir.isFile() ){
+                    inst.appendToBootstrapClassLoaderSearch(getJarFile(pathDir.getAbsolutePath()));
+                }
             }
         }
-        return isExclude;
-    }
+    }*/
+
+
 
     public static void premain(String args){
         System.out.println("================================Java agent premain======================");
         System.out.println("agent  args: " + args);
-    }
-
-    private static class InjectByteCode {
-        private boolean myResult;
-        private byte[] classfileBuffer;
-        private String packageClass;
-        private byte[] bytes;
-        private InvokeChainConfig config;
-        public InjectByteCode(InvokeChainConfig config,byte[] classfileBuffer, String packageClass) {
-            this.classfileBuffer = classfileBuffer;
-            this.packageClass = packageClass;
-            this.config = config;
-        }
-
-        boolean is() {
-            return myResult;
-        }
-
-        public byte[] getBytes() {
-            return bytes;
-        }
-
-        public InjectByteCode invoke() {
-            CtClass ctClass = null;
-            try {
-                ClassPool pool = ClassPool.getDefault();
-                pool.importPackage("org.demo.java.agent");
-                ctClass =pool.makeClass(new ByteArrayInputStream(classfileBuffer));
-                String className = ctClass.getName();
-                boolean hasInject = false;
-
-                if(!ctClass.isInterface() &&  !hasInjectClass.contains(className)  && ! (className.indexOf("$") > 0) ){
-                    CtBehavior[] declaredBehaviors = ctClass.getDeclaredBehaviors();
-                    String methodName = null;
-                    boolean isIgnoreLog = false;
-                    for (CtBehavior behavior: declaredBehaviors) {
-                        if (!Modifier.isAbstract(behavior.getModifiers())
-                                && !Modifier.isNative(behavior.getModifiers())) {
-                            //System.out.println("Inject byte code class: "+ packageClass + " method: " + behavior.getName());
-                            methodName = behavior.getName();
-                            isIgnoreLog = false;
-                            if(methodName.startsWith("get") && methodName.length() > 0 ){
-                                isIgnoreLog = isIgnoreLogGetterOrSetter(ctClass, methodName, "get");
-                            }else if(methodName.startsWith("set") && methodName.length() > 0 ){
-                                isIgnoreLog = isIgnoreLogGetterOrSetter(ctClass, methodName, "set");
-                            }else if(ctClass.isEnum() ){
-                                if("<init>".equalsIgnoreCase(methodName)
-                                        || ctClass.getSimpleName().equalsIgnoreCase(methodName)) {
-                                    if (config.getIgnoreLogMethodSet().contains("enums-constructor")) {
-                                        isIgnoreLog = true;
-                                    }
-                                }
-                            }else {
-                                if(config.getIgnoreLogMethodSet().contains(methodName)){
-                                    isIgnoreLog = true;
-                                }
-                            }
-                            if(!isIgnoreLog) {
-                                StringBuilder sb = new StringBuilder();
-                                final int lineNumber = behavior.getMethodInfo().getLineNumber(0);
-                                if (lineNumber > 0) {
-                                    sb.append("(").append(ctClass.getName()).append(":").append(lineNumber).append(")");
-                                } else {
-                                    sb.append("");
-                                }
-                                behavior.insertBefore("InvokeChainLogger.log(\"" + className + "\", \"" + behavior.getLongName() + "\",\"" + sb.toString() + "\");");
-                                behavior.insertAfter("InvokeChainLogger.leave();");
-                                hasInject = true;
-                            }
-                        }
-                    }
-                }else if(className.indexOf("$") > 0 && config.isDumpInnerClass()){
-                    File dir = new File(Thread.currentThread().getContextClassLoader().getResource("").getPath()+config.getDumpClassPath());
-                    if(!dir.exists()){
-                        dir.mkdirs();
-                    }
-                    ctClass.writeFile(dir.getPath());
-                }
-                if(hasInject) {
-                    bytes = ctClass.toBytecode();
-                }else {
-                    bytes = classfileBuffer;
-                }
-                myResult = true;
-                return this;
-            }catch(Throwable tx ){
-                tx.printStackTrace();
-            }finally{
-                if(ctClass != null){
-                    ctClass.detach();
-                }
-            }
-            myResult = false;
-            return this;
-        }
-
-        private boolean isIgnoreLogGetterOrSetter(CtClass ctClass, String methodName, String prefix) throws NotFoundException {
-            boolean isIgnoreLog = false;
-            String  fieldName = methodName.replace(prefix, "");
-            if(fieldName.trim().length() > 0) {
-                fieldName = String.valueOf(fieldName.subSequence(0, 1)).toLowerCase()
-                        + (fieldName.length() > 1? fieldName.substring(1):"");
-                try {
-                    CtField field = ctClass.getDeclaredField(fieldName);
-                    if (field != null && config.getIgnoreLogMethodSet().contains(prefix + "ter")) {
-                        isIgnoreLog = true;
-                    }
-                } catch (NotFoundException e) {
-                    //ignore
-                }
-            }
-            return isIgnoreLog;
-        }
     }
 }

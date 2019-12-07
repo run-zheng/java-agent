@@ -1,7 +1,6 @@
 package org.demo.java.agent;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class InvokeChainConfig {
     private Set<String> showPackageSet;
@@ -15,6 +14,7 @@ public class InvokeChainConfig {
     private String dumpClassPath ;
 
     private Set<String> ignoreLogMethodSet;
+    private String appendToBootstrapClassLoaderPaths;
 
     public void init(String args){
         this.showPackageSet = initShowPackageSet(args);
@@ -33,6 +33,26 @@ public class InvokeChainConfig {
             this.logType = LogTypeEnum.CONSOLE;
         }
         this.ignoreLogMethodSet = initIgnoreLogMethodSet();
+
+        this.appendToBootstrapClassLoaderPaths = System.getProperty("invoke.append.bootstrap.paths", "").trim();
+    }
+
+    public String getAppendToBootstrapClassLoaderPath() {
+        return appendToBootstrapClassLoaderPaths;
+    }
+
+    public List<String> getAppendToBootstrapClassLoaderPathList(){
+        if(getAppendToBootstrapClassLoaderPath() != null &&
+                !"".equalsIgnoreCase(getAppendToBootstrapClassLoaderPath())){
+            String[] paths = getAppendToBootstrapClassLoaderPath().split(";");
+            List<String> result = new ArrayList();
+            if(paths != null) {
+                for (int i = 0; i < paths.length; i++) {
+                    result.add(paths[i]);
+                }
+            }
+        }
+        return  new ArrayList();
     }
 
     public boolean isInvokeChainLogEnable() {

@@ -4,7 +4,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class InvokeChainLogger {
     private static final ThreadLocal<AtomicInteger>  invokeDeeps = new ThreadLocal<>();
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(InvokeChainLogger.class);
+    private static final BootLogger log = BootLogger.getLogger(InvokeChainLogger.class.getName());
     private static InvokeChainConfig config;
 
     public static void init(InvokeChainConfig invokeChainConfig){

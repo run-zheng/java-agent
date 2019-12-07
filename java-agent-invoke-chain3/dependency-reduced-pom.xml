@@ -26,12 +26,6 @@
               <include>org.javassist:*</include>
             </includes>
           </artifactSet>
-          <relocations>
-            <relocation>
-              <pattern>javassist</pattern>
-              <shadedPattern>org.demo.javassist</shadedPattern>
-            </relocation>
-          </relocations>
           <transformers>
             <transformer>
               <manifestEntries>
